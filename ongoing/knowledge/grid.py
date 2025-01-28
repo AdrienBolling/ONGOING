@@ -268,6 +268,8 @@ class KnowledgeGrid:
 
         if max_knowledge is None:
             max_knowledge = self.get_max_knowledge()
+        if type(max_knowledge) is str and max_knowledge == 'percentage':
+            max_knowledge = self.get_max_knowledge()
 
         # Step 1: Handle the reduction of dimensions other than dim1 and dim2
         grid = self._grid  # Assuming self._grid holds the knowledge grid
@@ -297,6 +299,9 @@ class KnowledgeGrid:
 
         # Step 5: Z-values correspond to the grid values along dim1 and dim2
         Z = grid[:, :]  # Adjust this slicing based on the grid's shape after reduction
+        
+        if type(max_knowledge) is str and max_knowledge == 'percentage':
+            Z = Z / jnp.max(Z) * 100
 
         # Step 6: Generate the 3D plot using Plotly
         fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y)])
@@ -307,7 +312,7 @@ class KnowledgeGrid:
             scene=dict(
                 xaxis_title=f"Dimension {dim1}",
                 yaxis_title=f"Dimension {dim2}",
-                zaxis_title="Knowledge",
+                zaxis_title=("Knowledge" if type(max_knowledge) is not str else "Knowledge repartition of the technician(%)"),
                 zaxis_range=[0, max_knowledge],
             ),
             autosize=True,
