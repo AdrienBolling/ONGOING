@@ -142,6 +142,8 @@ class KnowledgeGrid:
         self._feature_max = feature_max
         self._feature_min = feature_min
         self._propagations = propagations
+        
+        self._num_tickets = 0
 
         # Check that all propagations are valid
         for propagation in propagations:
@@ -244,6 +246,10 @@ class KnowledgeGrid:
         incr = new_experience - get_experience(self._grid, coords)
         self._grid, scaling_factor, incr = _propagate_increase(self._grid, coords, incr,
                                          self._propagation_threshold, self.gaussian)
+        
+        
+        if incr > 0:
+            self._num_tickets += 1
 
     def get_max_knowledge(self):
         """
