@@ -232,13 +232,17 @@ class KnowledgeGrid:
         coords = self.embedding_to_coords(ticket_embedding)
         return get_experience(self._grid, coords)
 
-    def add_ticket_knowledge(self, ticket_embedding: jnp.ndarray):
+    def add_ticket_knowledge(self, ticket_embedding: jnp.ndarray, random_location=False):
         """
         Add ticket knowledge to the knowledge grid
         :param ticket_embedding: jnp.ndarray - ticket embedding
         :param supervisor: Technician - supervisor technician
         """
         coords = self.embedding_to_coords(ticket_embedding)
+        if random_location:
+            coords = tuple(np.random.randint(0, s) for s in self._size)
+            # Convert to jnp array
+            coords = tuple(jnp.array(coords))
         new_experience = _compute_experience_without_supervisor(self._grid, coords,
                                                                 self._technician.learning_rate)
 
