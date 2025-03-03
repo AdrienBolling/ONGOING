@@ -161,6 +161,8 @@ class KnowledgeGrid:
         sizes = jnp.array(self._size)
         scaled_sigmas = sigmas * sizes / (self._feature_max - self._feature_min)
         self.kernel_sizes = (2 * jnp.ceil(3 * scaled_sigmas) + 1).astype(int)
+        # Impose an upper boundary of (size -1 / 6) to the kernel size
+        self.kernel_sizes = jnp.minimum(self.kernel_sizes, (sizes - 1) // 6)
 
         self.gaussian = gaussian_kernel(self.kernel_sizes, scaled_sigmas)
 
