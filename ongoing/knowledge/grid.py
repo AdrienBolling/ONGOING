@@ -48,6 +48,7 @@ class KnowledgeGrid:
         self._embedding_bounds = embedding_bounds
         self._methods = methods
         self._validate_methods()
+        self._total_num_experiences = 0
         
         self.b = -np.log(self._learning_rate)/np.log(2)  # for decay formula
         
@@ -104,13 +105,21 @@ class KnowledgeGrid:
         coords = self.embedding_to_coords(embedding)
         return self._grid[coords]**self.b
     
-    def get_max_knowledge(self) -> float:
+    def get_max_experiences(self) -> float:
         """
         Get the maximum knowledge value in the grid.
         Returns:
             float: Maximum knowledge value in the grid.
         """
         return np.max(self._grid)
+    
+    def get_max_knowledge(self) -> float:
+        """
+        Get the maximum knowledge value in the grid.
+        Returns:
+            float: Maximum knowledge value in the grid.
+        """
+        return np.max(self._grid)**self.b
     
     def add_ticket_knowledge(self, embedding: np.ndarray):
         """
@@ -120,6 +129,7 @@ class KnowledgeGrid:
             knowledge_value (float): Knowledge value to add.
         """
         coords = self.embedding_to_coords(embedding)
+        self._total_num_experiences += 1
         self._grid = add_gaussian_bump_scipy(
             self._grid,
             center=coords,
