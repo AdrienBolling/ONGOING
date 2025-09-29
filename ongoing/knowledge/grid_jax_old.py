@@ -142,6 +142,8 @@ class KnowledgeGrid:
         self._feature_max = feature_max
         self._feature_min = feature_min
         self._propagations = propagations
+        
+        self._num_tickets = 0
 
         # Check that all propagations are valid
         for propagation in propagations:
@@ -159,6 +161,8 @@ class KnowledgeGrid:
         sizes = jnp.array(self._size)
         scaled_sigmas = sigmas * sizes / (self._feature_max - self._feature_min)
         self.kernel_sizes = (2 * jnp.ceil(3 * scaled_sigmas) + 1).astype(int)
+        # Impose an upper boundary of (size -1 / 6) to the kernel size
+        self.kernel_sizes = jnp.minimum(self.kernel_sizes, (sizes - 1) // 6)
 
         self.gaussian = gaussian_kernel(self.kernel_sizes, scaled_sigmas)
 
@@ -230,13 +234,17 @@ class KnowledgeGrid:
         coords = self.embedding_to_coords(ticket_embedding)
         return get_experience(self._grid, coords)
 
-    def add_ticket_knowledge(self, ticket_embedding: jnp.ndarray):
+    def add_ticket_knowledge(self, ticket_embedding: jnp.ndarray, random_location=False):
         """
         Add ticket knowledge to the knowledge grid
         :param ticket_embedding: jnp.ndarray - ticket embedding
         :param supervisor: Technician - supervisor technician
         """
         coords = self.embedding_to_coords(ticket_embedding)
+        if random_location:
+            coords = tuple(np.random.randint(0, s) for s in self._size)
+            # Convert to jnp array
+            coords = tuple(jnp.array(coords))
         new_experience = _compute_experience_without_supervisor(self._grid, coords,
                                                                 self._technician.learning_rate)
 
@@ -244,6 +252,10 @@ class KnowledgeGrid:
         incr = new_experience - get_experience(self._grid, coords)
         self._grid, scaling_factor, incr = _propagate_increase(self._grid, coords, incr,
                                          self._propagation_threshold, self.gaussian)
+        
+        
+        if incr > 0:
+            self._num_tickets += 1
 
     def get_max_knowledge(self):
         """
@@ -267,6 +279,8 @@ class KnowledgeGrid:
         """
 
         if max_knowledge is None:
+            max_knowledge = self.get_max_knowledge()
+        if type(max_knowledge) is str and max_knowledge == 'percentage':
             max_knowledge = self.get_max_knowledge()
 
         # Step 1: Handle the reduction of dimensions other than dim1 and dim2
@@ -297,6 +311,9 @@ class KnowledgeGrid:
 
         # Step 5: Z-values correspond to the grid values along dim1 and dim2
         Z = grid[:, :]  # Adjust this slicing based on the grid's shape after reduction
+        
+        if type(max_knowledge) is str and max_knowledge == 'percentage':
+            Z = Z / jnp.max(Z) * 100
 
         # Step 6: Generate the 3D plot using Plotly
         fig = go.Figure(data=[go.Surface(z=Z, x=X, y=Y)])
@@ -307,7 +324,7 @@ class KnowledgeGrid:
             scene=dict(
                 xaxis_title=f"Dimension {dim1}",
                 yaxis_title=f"Dimension {dim2}",
-                zaxis_title="Knowledge",
+                zaxis_title=("Knowledge" if type(max_knowledge) is not str else "Knowledge repartition of the technician(%)"),
                 zaxis_range=[0, max_knowledge],
             ),
             autosize=True,
