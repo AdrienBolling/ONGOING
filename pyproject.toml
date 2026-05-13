@@ -1,6 +1,6 @@
 [project]
 name = "ongoing"
-version = "0.2.0"
+version = "0.2.1"
 description = "Continuous knowledge modelling library using n-dimensional grids"
 readme = "README.md"
 requires-python = ">=3.13"
