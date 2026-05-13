@@ -9,9 +9,9 @@ ONGOING models the evolving knowledge of agents (e.g. technicians, workers) as n
 - **Embedding space**: A continuous space (e.g. 2-D coordinates) representing the domain of possible tasks.
 - **Knowledge grid**: A discretised version of that space. Each cell stores an experience count.
 - **Gaussian propagation**: When an agent gains experience at a location, nearby cells also receive a fraction of that experience, controlled by `propagation_sigma`.
-- **Knowledge vs. experience**: Raw experience counts are transformed into knowledge values using a power law (`experience^b`), where `b` is derived from the `learning_rate` parameter. This models diminishing returns from repeated exposure.
+- **Knowledge vs. experience**: Raw experience counts are transformed into a dimensionless *knowledge factor* using a power law (`experience^b`), where `b = -log(LR)/log(2)` is Wright's learning exponent derived from `learning_rate` (the Wright LR, must be in `(0.5, 1.0)`). Users typically combine this factor with their own first-item production time `T_1` to recover a domain-specific quantity, e.g. `time_per_unit = T_1 / get_knowledge(...)`.
 - **Transmission**: Knowledge can be transferred between agents. An agent absorbs a fraction (`transmission_factor`) of the experience difference from a more knowledgeable peer.
-- **Decay**: Experience decays over time following a research-paper formula, modelling knowledge forgetting.
+- **Decay**: Experience decays per call to `decay_knowledge()` following the LFCM forgetting formula from [Jaber et al. 2013](https://doi.org/10.1016/j.apm.2013.02.028) (Eqs. 4–6). The formula is written in `T_1`-normalised form, so two dimensionless hyperparameters control the dynamics: `forgetting_time = B/T_1` (time to total forgetting) and `decay_step = τ/T_1` (length of break applied per call).
 
 ## Installation
 
@@ -43,7 +43,9 @@ from ongoing import KnowledgeGrid
 grid = KnowledgeGrid(
     shape=(50, 50),
     propagation_sigma=2.0,
-    learning_rate=0.1,
+    learning_rate=0.8,         # Wright's LR; lower = faster learning, must be in (0.5, 1.0)
+    forgetting_time=2000.0,    # B / T_1
+    decay_step=1.0,            # τ / T_1, length of break per decay_knowledge() call
     embedding_bounds=np.array([[0, 100], [0, 100]]),
 )
 
@@ -97,16 +99,20 @@ stats = grid_3d.render()
 
 ## API reference
 
-### `KnowledgeGrid(shape, propagation_sigma, transmission_factor, learning_rate, embedding_bounds, methods)`
+### `KnowledgeGrid(shape, propagation_sigma, transmission_factor, learning_rate, forgetting_time, decay_step, embedding_bounds, methods)`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `shape` | `tuple[int, ...]` | *(required)* | Grid dimensions (e.g. `(50, 50)` for 2-D) |
 | `propagation_sigma` | `float` | `1.0` | Std. dev. of the Gaussian used to spread experience to neighbouring cells |
 | `transmission_factor` | `float` | `0.5` | Factor for knowledge transmission between agents |
-| `learning_rate` | `float` | `0.1` | Controls the power-law exponent for the experience-to-knowledge transform |
+| `learning_rate` | `float` | `0.8` | Wright's LR; must be in `(0.5, 1.0)`. Lower = faster learning. The exponent `b = -log(LR)/log(2)` governs both the knowledge factor (`experience^b`) and the decay formula |
+| `forgetting_time` | `float` | `2000.0` | `B / T_1` — time to total forgetting in units of first-item production time. Larger = slower forgetting |
+| `decay_step` | `float` | `1.0` | `τ / T_1` — length of break applied by each `decay_knowledge()` call, in units of first-item production time |
 | `embedding_bounds` | `np.ndarray` | `[[0,100]]` per dim | Shape `(n_dims, 2)` array of `[min, max]` bounds for each embedding dimension |
 | `methods` | `list[str]` | `['propagation', 'transmission']` | Knowledge update methods to enable |
+
+> **Note**: `T_1` (first-item production time) is intentionally kept user-side. The library works only with dimensionless ratios `B/T_1` and `τ/T_1`. To recover a domain-specific time-per-unit, combine the knowledge factor with your own `T_1`: `time_per_unit = T_1 / grid.get_knowledge(embedding)`.
 
 ### Methods
 

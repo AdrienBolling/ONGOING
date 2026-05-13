@@ -17,7 +17,6 @@ def grid_2d():
     return KnowledgeGrid(
         shape=(20, 20),
         propagation_sigma=1.0,
-        learning_rate=0.1,
         embedding_bounds=np.array([[0.0, 10.0], [0.0, 10.0]]),
     )
 
@@ -27,7 +26,6 @@ def grid_3d():
     return KnowledgeGrid(
         shape=(10, 10, 10),
         propagation_sigma=1.0,
-        learning_rate=0.1,
         embedding_bounds=np.array([[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]]),
     )
 
@@ -48,6 +46,22 @@ class TestConstruction:
     def test_grid_starts_at_zero(self, grid_2d):
         assert np.all(grid_2d._grid == 0)
         assert grid_2d._total_num_experiences == 0
+
+    @pytest.mark.parametrize("bad_lr", [0.1, 0.5, 1.0, 1.5, -0.1])
+    def test_invalid_learning_rate_raises(self, bad_lr):
+        with pytest.raises(ValueError, match="learning_rate"):
+            KnowledgeGrid(shape=(5, 5), learning_rate=bad_lr)
+
+    def test_default_learning_rate_in_valid_range(self, grid_2d):
+        assert 0 < grid_2d.b < 1
+
+    def test_invalid_forgetting_time_raises(self):
+        with pytest.raises(ValueError, match="forgetting_time"):
+            KnowledgeGrid(shape=(5, 5), forgetting_time=0.0)
+
+    def test_invalid_decay_step_raises(self):
+        with pytest.raises(ValueError, match="decay_step"):
+            KnowledgeGrid(shape=(5, 5), decay_step=-1.0)
 
 
 # ------------------------------------------------------------------ #
@@ -136,7 +150,6 @@ class TestTransmission:
         other = KnowledgeGrid(
             shape=(20, 20),
             propagation_sigma=1.0,
-            learning_rate=0.1,
             embedding_bounds=np.array([[0.0, 10.0], [0.0, 10.0]]),
         )
         emb = np.array([5.0, 5.0])
@@ -198,6 +211,28 @@ class TestDecay:
         after = grid_2d.get_max_experiences()
         assert after < before
 
+    def test_larger_decay_step_decays_more(self):
+        """A longer break per call should remove more experience."""
+        bounds = np.array([[0.0, 10.0], [0.0, 10.0]])
+        slow = KnowledgeGrid(shape=(20, 20), embedding_bounds=bounds, decay_step=1.0)
+        fast = KnowledgeGrid(shape=(20, 20), embedding_bounds=bounds, decay_step=10.0)
+        for g in (slow, fast):
+            for _ in range(10):
+                g.add_ticket_knowledge(np.array([5.0, 5.0]))
+            g.decay_knowledge()
+        assert fast.get_max_experiences() < slow.get_max_experiences()
+
+    def test_larger_forgetting_time_decays_less(self):
+        """A longer time-to-total-forgetting should remove less experience."""
+        bounds = np.array([[0.0, 10.0], [0.0, 10.0]])
+        forgetful = KnowledgeGrid(shape=(20, 20), embedding_bounds=bounds, forgetting_time=100.0)
+        persistent = KnowledgeGrid(shape=(20, 20), embedding_bounds=bounds, forgetting_time=10000.0)
+        for g in (forgetful, persistent):
+            for _ in range(10):
+                g.add_ticket_knowledge(np.array([5.0, 5.0]))
+            g.decay_knowledge()
+        assert forgetful.get_max_experiences() < persistent.get_max_experiences()
+
 
 # ------------------------------------------------------------------ #
 #  Serialization
@@ -218,6 +253,8 @@ class TestSerialization:
         assert loaded._propagation_sigma == grid_2d._propagation_sigma
         assert loaded._transmission_factor == grid_2d._transmission_factor
         assert loaded._learning_rate == grid_2d._learning_rate
+        assert loaded._forgetting_time == grid_2d._forgetting_time
+        assert loaded._decay_step == grid_2d._decay_step
         assert loaded._total_num_experiences == grid_2d._total_num_experiences
         np.testing.assert_array_equal(loaded._embedding_bounds, grid_2d._embedding_bounds)
 
@@ -252,7 +289,6 @@ def populated_2d():
     grid = KnowledgeGrid(
         shape=(30, 30),
         propagation_sigma=2.0,
-        learning_rate=0.1,
         embedding_bounds=np.array([[0.0, 10.0], [0.0, 10.0]]),
     )
     # Concentrated cluster
